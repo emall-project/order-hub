@@ -1,0 +1,59 @@
+#version: "3.9"
+
+services:
+  order-hub-db:
+    image: postgres:17
+    container_name: order-hub-db
+    restart: always
+    environment:
+      POSTGRES_DB: order-hub-db
+      POSTGRES_USER: e-mall
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5432:5432"
+    volumes:
+      - order-hub_data:/var/lib/postgresql/data
+    networks:
+      - order-hub
+  order-hub-app:
+    build: .
+    container_name: order-hub-app
+    depends_on:
+      - order-hub-db
+    expose:
+      - "8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://order-hub-db:5432/order-hub
+      SPRING_DATASOURCE_USERNAME: e-mall
+      SPRING_DATASOURCE_PASSWORD: root
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_PORT: 8080
+
+
+      ##-------- Services Urls ---------
+      CATALOG_IP_ADDRESS: catalog-app
+      CATALOG_PORT: 8080
+      CAMPAIGNS_IP_ADDRESS: campaigns-app
+      CAMPAIGNS_PORT: 8080
+      ACCOUNTS_IP_ADDRESS: accounts-app
+      ACCOUNTS_PORT: 8080
+      MEDIA_MANAGER_IP_ADDRESS: media-manager-app
+      MEDIA_MANAGER_PORT: 8080
+
+
+    networks:
+      - services
+      - order-hub
+volumes:
+  order-hub_data:
+
+networks:
+  services:
+    driver: bridge
+    internal: true
+    name: services
+
+  order-hub:
+    driver: bridge
+    internal: true
+    name: order-hub-db
