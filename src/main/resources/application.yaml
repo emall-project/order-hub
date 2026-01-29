@@ -26,5 +26,5 @@ services:
     host: ${ACCOUNTS_IP_ADDRESS:http://localhost}
     port: ${ACCOUNTS_PORT:8083}
   media-manager:
-    host: ${ORDER_HUB_IP_ADDRESS:http://localhost}
+    host: ${MEDIA_MANAGER_IP_ADDRESS:http://localhost}
     port: ${ORDER_HUB_PORT:8085}
