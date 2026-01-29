@@ -1,0 +1,39 @@
+name: CI (Compose)
+
+on:
+  push:
+    branches: [ "develop" ]
+  pull_request:
+    branches: ["develop"]
+
+jobs:
+  test-compose:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build images
+        run: docker compose build
+
+      - name: Start services
+        run: docker compose up -d order-hub-db
+
+      - name: Wait for order-hub-db
+        run: |
+          for i in {1..30}; do
+            docker exec order-hub-db pg_isready -U e-mall -d order-hub && exit 0
+            sleep 2
+          done
+          echo "order-hub-db (Postgres) did not become ready in time" >&2
+          docker logs order-hub-db || true
+          exit 1
+
+      #       Run tests in a one-off container created from the app service
+      - name: Run tests in app container (Maven example)
+        run: docker compose run --rm order-hub-tests
+
+      - name: Shutdown
+        if: always()
+        run: docker compose down -v
