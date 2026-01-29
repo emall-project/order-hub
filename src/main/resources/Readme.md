@@ -23,7 +23,6 @@ The **Order-Hub Service** is a microservice in the **E-mall System** responsible
     - go to `Edit Configuration` window
     - set `dev` as the `Active Profile`
 
-
 #### Ports
 
 
