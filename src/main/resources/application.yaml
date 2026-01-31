@@ -21,10 +21,10 @@ services:
     port: ${CATALOG_PORT:8081}
   campaigns:
     host: ${CAMPAIGNS_IP_ADDRESS:http://localhost}
-    port: ${ACCOUNTS_PORT:8082}
+    port: ${CAMPAIGNS_PORT:8082}
   accounts:
     host: ${ACCOUNTS_IP_ADDRESS:http://localhost}
     port: ${ACCOUNTS_PORT:8083}
   media-manager:
     host: ${MEDIA_MANAGER_IP_ADDRESS:http://localhost}
-    port: ${ORDER_HUB_PORT:8085}
+    port: ${MEDIA_MANAGER_PORT:8085}
