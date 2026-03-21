@@ -6,11 +6,22 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
         format_sql: true
+        show_sql: true
+        use_sql_comments: true
+      org:
+        hibernate:
+          SQL: DEBUG
+          type: TRACE
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0  # 100% sampling for development
 
 server:
   port: ${SPRING_PORT:8084}
