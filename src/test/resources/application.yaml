@@ -1,18 +1,28 @@
 spring:
   datasource:
     driver-class-name: org.postgresql.Driver
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/order-hub}
-    username: ${SPRING_DATASOURCE_USERNAME:e-mall}
-    password: ${SPRING_DATASOURCE_PASSWORD:root}
-
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: validate
     properties:
       hibernate:
-        format_sql: true
+        default_schema: public
+      org:
+        hibernate:
+          envers:
+            revision_type_field_name: revtype
+            revision_field_name: rev
+            track_entities_changed_in_revision: false
+
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.xml
+
+  messages:
+    basename: messages
+    encoding: UTF-8
+    fallback-to-system-locale: false
 
 server:
   port: ${SERVICE_PORT:8081}
