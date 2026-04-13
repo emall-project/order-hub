@@ -28,6 +28,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: root
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_PORT: 8080
+      JWT_SECRET: ${JWT_SECRET}
 
 
       ##-------- Services Urls ---------
@@ -55,6 +56,7 @@ services:
       SPRING_DATASOURCE_USERNAME: e-mall
       SPRING_DATASOURCE_PASSWORD: root
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      JWT_SECRET: ${JWT_SECRET}
 
     entrypoint: [ "mvn" ]
     command: [ "-B", "test" ]
