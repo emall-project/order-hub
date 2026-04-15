@@ -3,6 +3,7 @@ package ps.emall.orderhub.security;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import ps.emall.orderhub.security.dto.StoreRef;
 import ps.emall.orderhub.security.userdetails.CustomUserDetails;
 
 import java.util.Collections;
@@ -62,8 +63,15 @@ public final class SecurityContextUtil {
                 .orElseThrow(() -> new SecurityException("User is not authenticated"));
     }
 
-    // Returns the current shop owner's shop IDs (empty list for other roles).
-    public static List<Long> getCurrentShopIds() {
+    public static Optional<Integer> getCurrentAge() {
+        return getCurrentUserDetails().map(CustomUserDetails::getAge);
+    }
+
+    public static Optional<String> getCurrentGender() {
+        return getCurrentUserDetails().map(CustomUserDetails::getGender);
+    }
+
+    public static List<StoreRef> getCurrentShopIds() {
         return getCurrentUserDetails()
                 .map(CustomUserDetails::getShopIds)
                 .orElse(Collections.emptyList());
@@ -107,13 +115,14 @@ public final class SecurityContextUtil {
     public static boolean isShopOwnerOf(Long shopId) {
         if (isAdmin()) return true;
         if (!isShopOwner()) return false;
-        return getCurrentShopIds().contains(shopId);
+        return getCurrentShopIds().stream()
+                .anyMatch(ref -> ref.getStoreId().equals(shopId));
     }
 
     public static boolean isShopOwnerOfNotAdmin(Long shopId) {
-        if (isShopOwner()) {
-            return getCurrentShopIds().contains(shopId);
-        } else return false;
+        if (!isShopOwner()) return false;
+        return getCurrentShopIds().stream()
+                .anyMatch(ref -> ref.getStoreId().equals(shopId));
     }
 
 

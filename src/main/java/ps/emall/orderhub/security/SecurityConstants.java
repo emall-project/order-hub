@@ -15,6 +15,8 @@ public final class SecurityConstants {
     public static final String CLAIM_FULL_NAME = "fullName";
     public static final String CLAIM_TOKEN_TYPE = "tokenType";
     public static final String CLAIM_SHOP_IDS = "shopIds";
+    public static final String CLAIM_AGE = "age";
+    public static final String CLAIM_GENDER = "gender";
 
     // ==================== Token Types ====================
     public static final String TOKEN_TYPE_ACCESS = "ACCESS";

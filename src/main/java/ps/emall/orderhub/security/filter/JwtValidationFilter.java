@@ -15,6 +15,7 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import ps.emall.orderhub.security.SecurityConstants;
+import ps.emall.orderhub.security.dto.StoreRef;
 import ps.emall.orderhub.security.jwt.JwtService;
 import ps.emall.orderhub.security.userdetails.CustomUserDetails;
 
@@ -58,10 +59,12 @@ public class JwtValidationFilter extends OncePerRequestFilter {
                     Long userId = jwtService.extractUserId(jwt);
                     String fullName = jwtService.extractFullName(jwt);
                     String role = jwtService.extractRole(jwt);
-                    List<Long> shopIds = jwtService.extractShopIds(jwt);
+                    Integer age = jwtService.extractAge(jwt);
+                    String gender = jwtService.extractGender(jwt);
+                    List<StoreRef> shopIds = jwtService.extractShopIds(jwt);
 
                     CustomUserDetails userDetails =
-                            new CustomUserDetails(userId, username, fullName, role, shopIds);
+                            new CustomUserDetails(userId, username, fullName, role, age, gender, shopIds);
 
                     List<GrantedAuthority> authorities =
                             List.of(new SimpleGrantedAuthority(role));

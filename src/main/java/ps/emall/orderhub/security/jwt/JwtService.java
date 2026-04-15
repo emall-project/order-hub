@@ -9,11 +9,13 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import ps.emall.orderhub.security.SecurityConstants;
+import ps.emall.orderhub.security.dto.StoreRef;
 
 import javax.crypto.SecretKey;
 import java.util.Collections;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 
@@ -45,14 +47,36 @@ public class JwtService {
         return extractClaim(token, claims -> claims.get(SecurityConstants.CLAIM_FULL_NAME, String.class));
     }
 
+    public Integer extractAge(String token) {
+        Object raw = extractClaim(token, claims -> claims.get(SecurityConstants.CLAIM_AGE));
+        if (raw instanceof Integer) return (Integer) raw;
+        return null;
+    }
+
+    public String extractGender(String token) {
+        return extractClaim(token, claims ->
+                claims.get(SecurityConstants.CLAIM_GENDER, String.class));
+    }
+
     @SuppressWarnings("unchecked")
-    public List<Long> extractShopIds(String token) {
+    public List<StoreRef> extractShopIds(String token) {
         Object raw = extractClaim(token, claims -> claims.get(SecurityConstants.CLAIM_SHOP_IDS));
         if (raw == null) return Collections.emptyList();
         List<?> list = (List<?>) raw;
         return list.stream()
-                .map(v -> v instanceof Integer ? ((Integer) v).longValue() : (Long) v)
+                .map(item -> {
+                    Map<?, ?> map = (Map<?, ?>) item;
+                    Long storeId = toLong(map.get("storeId"));
+                    Long mallId  = toLong(map.get("mallId"));
+                    return new StoreRef(storeId, mallId);
+                })
                 .toList();
+    }
+
+    private Long toLong(Object v) {
+        if (v instanceof Integer) return ((Integer) v).longValue();
+        if (v instanceof Long)    return (Long) v;
+        return null;
     }
 
     public String extractTokenType(String token) {
