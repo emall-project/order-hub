@@ -43,6 +43,7 @@ public class ReturnRequestDto {
 
     private String rejectionReason;
 
+    @NotNull(message = "returnRequest.imageUuid.notnull")
     private UUID imageUuid;
     private FileDto image;
 

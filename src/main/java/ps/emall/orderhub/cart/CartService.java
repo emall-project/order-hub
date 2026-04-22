@@ -5,6 +5,8 @@ import ps.emall.orderhub.cart.item.AddToCartRequest;
 import ps.emall.orderhub.cart.item.UpdateCartItemRequest;
 import ps.emall.orderhub.common.page.PaginatedResponse;
 
+import java.util.List;
+
 public interface CartService {
 
     /**
@@ -24,6 +26,8 @@ public interface CartService {
     CartDto getCartById(Long cartId, Long customerId);
 
     PaginatedResponse<CartDto> getMyCartHistory(Long customerId, Pageable pageable);
+
+    List<CartDto> getAllActiveCartsForCustomer(Long customerId);
 
     // Modify active cart
 
