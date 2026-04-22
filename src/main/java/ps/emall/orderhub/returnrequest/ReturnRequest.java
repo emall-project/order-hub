@@ -68,6 +68,6 @@ public class ReturnRequest extends EMallsBaseEntity {
     @Column(name = "rejection_reason", columnDefinition = "TEXT")
     private String rejectionReason;
 
-    @Column(name = "image_uuid")
+    @Column(name = "image_uuid", nullable = false)
     private UUID imageUuid;
 }
