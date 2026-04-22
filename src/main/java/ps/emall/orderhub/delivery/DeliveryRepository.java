@@ -22,4 +22,7 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long>,
     Page<Delivery> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     long countByStatus(DeliveryStatus status);
+
+    List<Delivery> findByCartIdInOrderByCreatedAtDesc(List<Long> cartIds);
+
 }

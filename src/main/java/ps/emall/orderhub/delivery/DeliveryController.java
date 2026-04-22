@@ -10,6 +10,7 @@ import ps.emall.orderhub.common.page.PaginatedResponse;
 import ps.emall.orderhub.common.response.EMallsResponseEntity;
 import ps.emall.orderhub.security.SecurityContextUtilBean;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -42,11 +43,23 @@ public class DeliveryController {
     }
 
     @GetMapping("/cart/{cartId}")
-    @PreAuthorize("@auth.isCustomer() or @auth.isAdmin()")
+    @PreAuthorize("@auth.isAdmin()")
     public EMallsResponseEntity<DeliveryDto> getByCartId(@PathVariable @Positive Long cartId) {
+        return EMallsResponseEntity.ok(deliveryService.getByCartId(cartId));
+    }
 
-        Long customerId = auth.isAdmin() ? null : auth.getCurrentUserId();
-        return EMallsResponseEntity.ok(deliveryService.getByCartId(cartId, customerId));
+    @GetMapping("/me/cart/{cartId}")
+    @PreAuthorize("@auth.isCustomer()")
+    public EMallsResponseEntity<DeliveryDto> getMyDeliveryByCartId(@PathVariable @Positive Long cartId) {
+        Long customerId = auth.getCurrentUserId();
+        return EMallsResponseEntity.ok(deliveryService.getByCartIdForCustomer(cartId, customerId));
+    }
+
+    @GetMapping("/me")
+    @PreAuthorize("@auth.isCustomer()")
+    public EMallsResponseEntity<List<DeliveryDto>> getMyDeliveries() {
+        Long customerId = auth.getCurrentUserId();
+        return EMallsResponseEntity.ok(deliveryService.getMyDeliveries(customerId));
     }
 
     @PatchMapping("/{deliveryId}/sent")

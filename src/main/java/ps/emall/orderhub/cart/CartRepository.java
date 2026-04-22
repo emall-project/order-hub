@@ -26,4 +26,8 @@ public interface CartRepository extends JpaRepository<Cart, Long>,
     Page<Cart> findByCustomerIdOrderByCreatedAtDesc(Long customerId, Pageable pageable);
 
     long countByStatus(CartStatus status);
+
+    List<Cart> findAllByCustomerIdAndStatus(Long customerId, CartStatus status);
+
+    List<Long> findCartIdByCustomerId(Long customerId);
 }

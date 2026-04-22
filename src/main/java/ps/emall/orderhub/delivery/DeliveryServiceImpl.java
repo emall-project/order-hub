@@ -6,6 +6,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ps.emall.orderhub.cart.Cart;
+import ps.emall.orderhub.cart.CartExceptions;
 import ps.emall.orderhub.cart.CartRepository;
 import ps.emall.orderhub.common.page.PaginatedResponse;
 import ps.emall.orderhub.order.ShopOrderRepository;
@@ -13,6 +15,7 @@ import ps.emall.orderhub.order.ShopOrderServiceImpl;
 
 import java.time.LocalDateTime;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -28,17 +31,27 @@ public class DeliveryServiceImpl implements DeliveryService {
 
     @Override
     @Transactional(readOnly = true)
-    public DeliveryDto getByCartId(Long cartId, Long customerId) {
+    public DeliveryDto getByCartId(Long cartId) {
         Delivery delivery = deliveryRepository.findByCartId(cartId)
                 .orElseThrow(DeliveryExceptions::deliveryNotFound);
 
-        if (customerId != null) {
-            cartRepository.findById(cartId)
-                    .filter(cart -> cart.getCustomerId().equals(customerId))
-                    .orElseThrow(DeliveryExceptions::deliveryNotFound);
+        return DeliveryMapper.toDtoWithContext(delivery, shopOrderRepository, cartRepository);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public DeliveryDto getByCartIdForCustomer(Long cartId, Long customerId) {
+        Cart cart = cartRepository.findById(cartId)
+                .orElseThrow(CartExceptions::cartNotFound);
+
+        if (!cart.getCustomerId().equals(customerId)) {
+            throw CartExceptions.cartNotFound();
         }
 
-        return DeliveryMapper.toDtoWithContext(delivery, shopOrderRepository, cartRepository);
+        Delivery delivery = deliveryRepository.findByCartId(cartId)
+                .orElseThrow(DeliveryExceptions::deliveryNotFound);
+
+        return DeliveryMapper.toDto(delivery);
     }
 
     @Override
@@ -66,6 +79,21 @@ public class DeliveryServiceImpl implements DeliveryService {
                 .map(d -> DeliveryMapper.toDtoWithContext(d, shopOrderRepository, cartRepository));
 
         return PaginatedResponse.of(page);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<DeliveryDto> getMyDeliveries(Long customerId) {
+        List<Long> cartIds = cartRepository.findCartIdByCustomerId(customerId);
+
+        if (cartIds.isEmpty()) {
+            return List.of();
+        }
+
+        return deliveryRepository.findByCartIdInOrderByCreatedAtDesc(cartIds)
+                .stream()
+                .map(DeliveryMapper::toDto)
+                .toList();
     }
 
     @Override

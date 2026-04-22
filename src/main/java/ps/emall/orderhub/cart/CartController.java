@@ -61,6 +61,13 @@ public class CartController {
         return EMallsResponseEntity.ok(cartService.getMyCartHistory(customerId, pageable));
     }
 
+    @GetMapping("/me/active")
+    @PreAuthorize("@auth.isCustomer()")
+    public EMallsResponseEntity<List<CartDto>> getMyActiveCarts() {
+        Long customerId = auth.getCurrentUserId();
+        return EMallsResponseEntity.ok(cartService.getAllActiveCartsForCustomer(customerId));
+    }
+
     // Modify delivery details
 
     @PutMapping("/{cartId}/delivery")

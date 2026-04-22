@@ -21,6 +21,8 @@ import ps.emall.orderhub.common.page.PaginatedResponse;
 import ps.emall.orderhub.common.phone_number.PhoneNumberMapper;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -187,6 +189,16 @@ public class CartServiceImpl implements CartService {
                         .map(CartMapper::toDto)
                         .map(enrichmentService::enrich)
         );
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CartDto> getAllActiveCartsForCustomer(Long customerId) {
+        return cartRepository.findAllByCustomerIdAndStatus(customerId, CartStatus.ACTIVE)
+                .stream()
+                .map(CartMapper::toDto)
+                .map(enrichmentService::enrich)
+                .collect(Collectors.toList());
     }
 
     // Modify active cart
