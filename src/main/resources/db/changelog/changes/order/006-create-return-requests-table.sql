@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS orders.return_requests (
     CONSTRAINT uk_return_order_item UNIQUE (order_item_id),
     CONSTRAINT fk_return_order_item FOREIGN KEY (order_item_id)
     REFERENCES orders.order_items (order_item_id) ON DELETE CASCADE
-    );
+);
 
 CREATE INDEX IF NOT EXISTS idx_return_order_item ON orders.return_requests (order_item_id);
 CREATE INDEX IF NOT EXISTS idx_return_shop_status ON orders.return_requests (shop_id, status);
