@@ -44,3 +44,8 @@ services:
   media-manager:
     host: ${MEDIA_MANAGER_IP_ADDRESS:http://localhost}
     port: ${MEDIA_MANAGER_PORT:8085}
+
+internal:
+  auth:
+    username: ${INTERNAL_SERVICE_USERNAME:e-mall-internal}
+    password: ${INTERNAL_SERVICE_PASSWORD:s3cr3t-internal-p@ss}
