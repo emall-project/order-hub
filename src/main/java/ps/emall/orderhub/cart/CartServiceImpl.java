@@ -22,6 +22,7 @@ import ps.emall.orderhub.common.phone_number.PhoneNumberMapper;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -37,32 +38,13 @@ public class CartServiceImpl implements CartService {
     private final AccountsClient accountsClient;
     private final CartEnrichmentService enrichmentService;
 
-    // Core operation
+    // ─── Core operation ────────────────────────────────────────────────────────
 
-    /**
-     * "Add to cart" — the single entry point for the customer clicking
-     * "Add to cart" on a product page.
-     *
-     * Flow:
-     *  1. Validate customer exists and is active (soft — allows if accounts unreachable)
-     *  2. Validate product + variant from Catalog service
-     *  3. Validate product.mallId matches the requested mallId (product must belong to this mall)
-     *  4. Look for an existing ACTIVE cart for this customer + mall combo
-     *     → If found: use it
-     *     → If not found: create a new empty cart for this mall
-     *  5. Block duplicate variant (same variant already in this cart)
-     *  6. Snapshot basePrice from catalog + discountedPrice from campaigns (graceful if unavailable)
-     *  7. Add item, recalculate cart total, save
-     *
-     * A customer can have one ACTIVE cart per mall at a time.
-     * They can have active carts in multiple different malls simultaneously.
-     */
     @Override
     public CartDto addItem(Long customerId, AddToCartRequest request) {
 
         validateCustomerExists(customerId);
 
-        // Step 2: Validate product + variant from Catalog service
         ProductInfoDto product = fetchProductOrThrow(request.getProductId());
 
         if (Boolean.FALSE.equals(product.getIsActive())) {
@@ -72,24 +54,19 @@ public class CartServiceImpl implements CartService {
         ProductInfoDto.VariantPriceInfoDto variant =
                 findVariantOrThrow(product, request.getVariantId());
 
-        // Step 3: Verify the product belongs to the mall the customer is shopping in.
-        // This prevents a customer from accidentally adding a Ramallah mall product
-        // into their Nablus mall cart.
         if (product.getMallId() != null && !product.getMallId().equals(request.getMallId())) {
             throw CartExceptions.productDoesNotBelongToMall();
         }
 
-        // Step 4: Find or create ACTIVE cart for this customer + mall
         Cart cart = cartRepository
                 .findByCustomerIdAndMallIdAndStatus(customerId, request.getMallId(), CartStatus.ACTIVE)
                 .orElseGet(() -> createEmptyCart(customerId, request.getMallId()));
 
-        // Step 5: Block duplicate variant in the same cart
         if (cartItemRepository.existsByCart_CartIdAndVariantId(cart.getCartId(), request.getVariantId())) {
             throw CartExceptions.duplicateVariantInCart();
         }
 
-        // Step 6: Snapshot price and inject discount from Campaigns service
+        // Snapshot base price
         BigDecimal basePrice = variant.getBasePrice();
         BigDecimal discountedPrice = null;
         Long offerId = null;
@@ -100,16 +77,7 @@ public class CartServiceImpl implements CartService {
 
             if (campaignsResponse != null && campaignsResponse.getData() != null) {
                 OfferItemDto offerItem = campaignsResponse.getData();
-
                 if (offerItem.getVariantPrices() != null) {
-                    offerItem.getVariantPrices().stream()
-                            .filter(vp -> vp.getVariantId() != null
-                                    && vp.getVariantId().equals(request.getVariantId())
-                                    && vp.getDiscountedPrice() != null)
-                            .findFirst()
-                            .ifPresent(vp -> {
-                            });
-
                     for (OfferItemDto.VariantPriceDto vp : offerItem.getVariantPrices()) {
                         if (request.getVariantId().equals(vp.getVariantId())
                                 && vp.getDiscountedPrice() != null) {
@@ -121,15 +89,13 @@ public class CartServiceImpl implements CartService {
                 }
             }
         } catch (FeignException.NotFound e) {
-            log.warn("Campaigns service returned 404 for productId={}. Check URL config.", request.getProductId());
+            log.warn("Campaigns 404 for productId={}", request.getProductId());
         } catch (FeignException e) {
-            log.debug("Campaigns service unreachable for productId={}. Adding at base price. status={}",
-                    request.getProductId(), e.status());
+            log.debug("Campaigns unreachable for productId={}, status={}", request.getProductId(), e.status());
         } catch (Exception e) {
             log.debug("Could not fetch discount for productId={}: {}", request.getProductId(), e.getMessage());
         }
 
-        // Step 7: Build item and add to cart
         CartItem item = CartItem.builder()
                 .cart(cart)
                 .productId(product.getProductId())
@@ -146,44 +112,52 @@ public class CartServiceImpl implements CartService {
 
         CartItem savedItem = cartItemRepository.save(item);
         cart.getItems().add(savedItem);
-        cart.recalculateTotal();
 
+        // Refresh OTHER items in the cart before recalculating
+        refreshCartPrices(cart);
+
+        cart.recalculateTotal();
         Cart saved = cartRepository.save(cart);
-        log.info("Item added to cart: cartId={}, mallId={}, productId={}, variantId={}, wasNewCart={}",
-                saved.getCartId(), request.getMallId(),
-                request.getProductId(), request.getVariantId(),
-                cart.getCreatedAt() == null);
+
+        log.info("Item added to cart: cartId={}, productId={}, variantId={}, offerId={}",
+                saved.getCartId(), request.getProductId(), request.getVariantId(), offerId);
+
         return enrichmentService.enrich(CartMapper.toDto(saved));
     }
 
-    // Read
+    // ─── Read ──────────────────────────────────────────────────────────────────
 
     @Override
-    @Transactional(readOnly = true)
+    // Note: NOT readOnly — refreshCartPrices may write
     public CartDto getActiveCartForMall(Long customerId, Long mallId) {
         Cart cart = cartRepository
                 .findByCustomerIdAndMallIdAndStatus(customerId, mallId, CartStatus.ACTIVE)
                 .orElseThrow(CartExceptions::cartNotFound);
 
+        refreshCartPrices(cart);
+
         return enrichmentService.enrich(CartMapper.toDto(cart));
     }
 
     @Override
-    @Transactional(readOnly = true)
+    // Note: NOT readOnly — refreshCartPrices may write
     public CartDto getCartById(Long cartId, Long customerId) {
         Cart cart = cartRepository.findById(cartId)
                 .orElseThrow(CartExceptions::cartNotFound);
 
-        // Admin passes customerId = null — skip ownership check
         if (customerId != null && !cart.getCustomerId().equals(customerId)) {
             throw CartExceptions.cartNotFound();
         }
+
+        refreshCartPrices(cart);
+
         return enrichmentService.enrich(CartMapper.toDto(cart));
     }
 
     @Override
     @Transactional(readOnly = true)
     public PaginatedResponse<CartDto> getMyCartHistory(Long customerId, Pageable pageable) {
+        // History = checked out / cancelled carts → no price refresh needed
         return PaginatedResponse.of(
                 cartRepository.findByCustomerIdOrderByCreatedAtDesc(customerId, pageable)
                         .map(CartMapper::toDto)
@@ -192,22 +166,22 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    // Note: NOT readOnly — refreshCartPrices may write
     public List<CartDto> getAllActiveCartsForCustomer(Long customerId) {
-        return cartRepository.findAllByCustomerIdAndStatus(customerId, CartStatus.ACTIVE)
-                .stream()
+        List<Cart> carts = cartRepository.findAllByCustomerIdAndStatus(customerId, CartStatus.ACTIVE);
+        carts.forEach(this::refreshCartPrices);
+        return carts.stream()
                 .map(CartMapper::toDto)
                 .map(enrichmentService::enrich)
                 .collect(Collectors.toList());
     }
 
-    // Modify active cart
+    // ─── Modify active cart ────────────────────────────────────────────────────
 
     @Override
     public CartDto updateDeliveryDetails(Long cartId, Long customerId, CartDto details) {
         Cart cart = getActiveCartOwnedBy(cartId, customerId);
 
-        // Re-fetch delivery fee only if city changed
         if (details.getCityId() != null
                 && !details.getCityId().equals(cart.getCityId())) {
             CityDto city = fetchCityOrThrow(details.getCityId());
@@ -233,7 +207,6 @@ public class CartServiceImpl implements CartService {
 
         Cart cart = item.getCart();
 
-        // Verify ownership — item must belong to this customer's cart
         if (!cart.getCustomerId().equals(customerId)) {
             throw CartExceptions.cartItemNotInCart();
         }
@@ -244,8 +217,12 @@ public class CartServiceImpl implements CartService {
         item.setQuantity(request.getQuantity());
         cartItemRepository.save(item);
 
+        // Refresh ALL items (including this one) so prices are current before total
+        refreshCartPrices(cart);
+
         cart.recalculateTotal();
         Cart saved = cartRepository.save(cart);
+
         log.info("Cart item quantity updated: cartItemId={}, newQuantity={}",
                 cartItemId, request.getQuantity());
         return enrichmentService.enrich(CartMapper.toDto(saved));
@@ -266,9 +243,13 @@ public class CartServiceImpl implements CartService {
         }
 
         cart.getItems().remove(item);
-        cart.recalculateTotal();
 
+        // Refresh remaining items before recalculating total
+        refreshCartPrices(cart);
+
+        cart.recalculateTotal();
         Cart saved = cartRepository.save(cart);
+
         log.info("Item removed from cart: cartId={}, cartItemId={}", cart.getCartId(), cartItemId);
         return enrichmentService.enrich(CartMapper.toDto(saved));
     }
@@ -299,7 +280,7 @@ public class CartServiceImpl implements CartService {
         return enrichmentService.enrich(CartMapper.toDto(saved));
     }
 
-    // System
+    // ─── System ────────────────────────────────────────────────────────────────
 
     @Override
     public void markCheckedOut(Long cartId) {
@@ -315,7 +296,7 @@ public class CartServiceImpl implements CartService {
         log.info("Cart marked as checked out: cartId={}", cartId);
     }
 
-    // Admin
+    // ─── Admin ─────────────────────────────────────────────────────────────────
 
     @Override
     @Transactional(readOnly = true)
@@ -327,7 +308,90 @@ public class CartServiceImpl implements CartService {
         );
     }
 
-    // Private helpers
+    // ─── Price refresh ─────────────────────────────────────────────────────────
+
+    /**
+     * For every item in the cart, calls Campaigns service to check the current
+     * active offer. If the offer changed (new offer, offer removed, offer replaced),
+     * updates discountedPrice and offerId on the item and saves it.
+     *
+     * After the loop, if anything changed, recalculateTotal() is called by the caller.
+     *
+     * Graceful: if Campaigns is unreachable for an item, that item is skipped
+     * and its price stays as-is — no exception is thrown to the user.
+     */
+    private void refreshCartPrices(Cart cart) {
+        if (cart.getItems() == null || cart.getItems().isEmpty()) return;
+
+        boolean anyChanged = false;
+
+        for (CartItem item : cart.getItems()) {
+            BigDecimal newDiscountedPrice = null;
+            Long newOfferId = null;
+            boolean fetchSucceeded = false;
+
+            try {
+                CampaignsOfferResponse response =
+                        campaignsClient.getActiveOfferForProduct(item.getProductId());
+
+                fetchSucceeded = true;
+
+                if (response != null && response.getData() != null) {
+                    OfferItemDto offerItem = response.getData();
+                    if (offerItem.getVariantPrices() != null) {
+                        for (OfferItemDto.VariantPriceDto vp : offerItem.getVariantPrices()) {
+                            if (item.getVariantId().equals(vp.getVariantId())
+                                    && vp.getDiscountedPrice() != null) {
+                                newDiscountedPrice = vp.getDiscountedPrice();
+                                newOfferId = offerItem.getOfferId();
+                                break;
+                            }
+                        }
+                    }
+                }
+
+            } catch (FeignException.NotFound e) {
+                // No active offer for this product — treat as "no discount"
+                fetchSucceeded = true;
+                log.debug("No active offer for productId={}", item.getProductId());
+            } catch (FeignException e) {
+                log.debug("Campaigns unreachable for productId={}, skipping refresh. status={}",
+                        item.getProductId(), e.status());
+                // fetchSucceeded = false → skip this item, keep old price
+            } catch (Exception e) {
+                log.debug("Unexpected error refreshing price for productId={}: {}",
+                        item.getProductId(), e.getMessage());
+                // fetchSucceeded = false → skip this item, keep old price
+            }
+
+            if (!fetchSucceeded) continue;
+
+            // Check if anything actually changed before touching the DB
+            boolean offerChanged =
+                    !Objects.equals(newOfferId, item.getOfferId()) ||
+                            !Objects.equals(newDiscountedPrice, item.getDiscountedPrice());
+
+            if (offerChanged) {
+                log.info("Offer changed for cartItemId={} variantId={}: offerId {} → {}, discountedPrice {} → {}",
+                        item.getCartItemId(), item.getVariantId(),
+                        item.getOfferId(), newOfferId,
+                        item.getDiscountedPrice(), newDiscountedPrice);
+
+                item.setDiscountedPrice(newDiscountedPrice);
+                item.setOfferId(newOfferId);
+                cartItemRepository.save(item);
+                anyChanged = true;
+            }
+        }
+
+        if (anyChanged) {
+            cart.recalculateTotal();
+            cartRepository.save(cart);
+            log.info("Cart prices refreshed and total recalculated: cartId={}", cart.getCartId());
+        }
+    }
+
+    // ─── Private helpers ───────────────────────────────────────────────────────
 
     private Cart createEmptyCart(Long customerId, Long mallId) {
         Cart cart = Cart.builder()
@@ -366,7 +430,7 @@ public class CartServiceImpl implements CartService {
         } catch (FeignException.NotFound e) {
             throw CartExceptions.productNotFoundInCatalog();
         } catch (FeignException e) {
-            log.error("Catalog service unreachable for productId={}, status={}", productId, e.status());
+            log.error("Catalog unreachable for productId={}, status={}", productId, e.status());
             throw CartExceptions.productNotFoundInCatalog();
         }
     }
@@ -394,7 +458,7 @@ public class CartServiceImpl implements CartService {
         } catch (FeignException.NotFound e) {
             throw CartExceptions.cityNotFound();
         } catch (FeignException e) {
-            log.error("Accounts service unreachable for cityId={}, status={}", cityId, e.status());
+            log.error("Accounts unreachable for cityId={}, status={}", cityId, e.status());
             throw CartExceptions.cityNotFound();
         }
     }
@@ -411,7 +475,7 @@ public class CartServiceImpl implements CartService {
         } catch (FeignException.NotFound e) {
             throw CartExceptions.customerNotFound();
         } catch (FeignException e) {
-            log.warn("Accounts service unreachable for customerId={}, status={}. Allowing request.",
+            log.warn("Accounts unreachable for customerId={}, status={}. Allowing request.",
                     customerId, e.status());
         }
     }
