@@ -2,7 +2,7 @@ name: Build Order Hub Image
 
 on:
   push:
-    branches: ["develop"]
+    branches: ["production"]
   workflow_dispatch:
 
 permissions:
@@ -37,6 +37,6 @@ jobs:
           push: true
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:develop
+            ${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:production
           cache-from: type=gha
           cache-to: type=gha,mode=max
