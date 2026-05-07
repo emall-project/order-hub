@@ -7,6 +7,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ps.emall.orderhub.cart.*;
+import ps.emall.orderhub.client.catalog.CatalogClient;
+import ps.emall.orderhub.client.catalog.CatalogProductsResponse;
+import ps.emall.orderhub.client.catalog.ProductIdsRequest;
+import ps.emall.orderhub.client.catalog.ProductLightDto;
 import ps.emall.orderhub.dashboard.section.*;
 import ps.emall.orderhub.delivery.*;
 import ps.emall.orderhub.order.*;
@@ -32,6 +36,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final ReturnRequestRepository returnRequestRepository;
     private final ShopOrderEnrichmentService shopOrderEnrichmentService;
     private final ReturnRequestEnrichmentService returnEnrichmentService;
+    private final CatalogClient catalogClient;
 
     // Admin
 
@@ -282,6 +287,115 @@ public class DashboardServiceImpl implements DashboardService {
                 .map(returnEnrichmentService::enrich)
                 .collect(Collectors.toList());
         return new ActiveReturnsDto(returns);
+    }
+
+    @Override
+    public List<ProductInsightDto> getMostOrderedProducts(Long shopId, Integer limit) {
+        int safeLimit = normalizeLimit(limit);
+        List<Long> productIds = findMostOrderedProductIds(shopId, safeLimit);
+        if (productIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Long> quantityByProductId = getOrderedQuantityMap(shopId, productIds);
+
+        return fetchProducts(productIds).stream()
+                .map(product -> toProductInsight(product, quantityByProductId))
+                .filter(Objects::nonNull)
+                .toList();
+    }
+
+    @Override
+    public List<ProductInsightDto> getDiscountedOrderedProducts(Long shopId, Integer limit) {
+        int safeLimit = normalizeLimit(limit);
+        List<Long> productIds = findOrderedProductIds(shopId);
+        if (productIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Long> quantityByProductId = getOrderedQuantityMap(shopId, productIds);
+
+        return fetchProducts(productIds).stream()
+                .filter(product -> Boolean.TRUE.equals(product.getHasDiscount()))
+                .map(product -> toProductInsight(product, quantityByProductId))
+                .filter(Objects::nonNull)
+                .sorted(Comparator
+                        .comparing(ProductInsightDto::getOrderedQuantity, Comparator.reverseOrder())
+                        .thenComparing(insight -> insight.getProduct().getId()))
+                .limit(safeLimit)
+                .toList();
+    }
+
+    private int normalizeLimit(Integer limit) {
+        if (limit == null || limit < 1) {
+            return 10;
+        }
+
+        return Math.min(limit, 50);
+    }
+
+    private List<Long> findMostOrderedProductIds(Long shopId, int limit) {
+        PageRequest page = PageRequest.of(0, limit);
+        if (shopId == null) {
+            return orderItemRepository.findMostOrderedProductIds(page);
+        }
+
+        return orderItemRepository.findMostOrderedProductIdsByShopId(shopId, page);
+    }
+
+    private List<Long> findOrderedProductIds(Long shopId) {
+        if (shopId == null) {
+            return orderItemRepository.findOrderedProductIds();
+        }
+
+        return orderItemRepository.findOrderedProductIdsByShopId(shopId);
+    }
+
+    private List<ProductLightDto> fetchProducts(List<Long> productIds) {
+        CatalogProductsResponse response = catalogClient.getProductsByIds(
+                ProductIdsRequest.builder()
+                        .productIds(productIds)
+                        .build()
+        );
+
+        if (response == null || response.getData() == null) {
+            return List.of();
+        }
+
+        return response.getData();
+    }
+
+    private Map<Long, Long> getOrderedQuantityMap(Long shopId, List<Long> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<Object[]> rows = shopId == null
+                ? orderItemRepository.sumQuantityByProductIds(productIds)
+                : orderItemRepository.sumQuantityByShopIdAndProductIds(shopId, productIds);
+
+        return rows.stream()
+                .filter(row -> row.length >= 2 && row[0] != null && row[1] != null)
+                .collect(Collectors.toMap(
+                        row -> ((Number) row[0]).longValue(),
+                        row -> ((Number) row[1]).longValue(),
+                        (left, right) -> left,
+                        HashMap::new
+                ));
+    }
+
+    private ProductInsightDto toProductInsight(
+            ProductLightDto product,
+            Map<Long, Long> quantityByProductId
+    ) {
+        if (product == null || product.getId() == null) {
+            return null;
+        }
+
+        return ProductInsightDto.builder()
+                .product(product)
+                .orderedQuantity(quantityByProductId.getOrDefault(product.getId(), 0L))
+                .build();
     }
 
     private java.math.BigDecimal orZero(java.math.BigDecimal v) {
