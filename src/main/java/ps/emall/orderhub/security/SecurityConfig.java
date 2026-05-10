@@ -47,6 +47,7 @@ public class SecurityConfig {
                         // Public
                         .requestMatchers(SecurityConstants.PUBLIC_URLS).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/dashboard/products/most-ordered/public").permitAll()
 
 
                         .anyRequest().authenticated()

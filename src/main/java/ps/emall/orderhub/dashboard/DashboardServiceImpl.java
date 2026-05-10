@@ -306,6 +306,20 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     @Override
+    public List<ProductOrderRankDto> getPublicMostOrderedProducts(Integer limit) {
+        int safeLimit = normalizeLimit(limit);
+        List<Long> productIds = findMostOrderedProductIds(null, safeLimit);
+        Map<Long, Long> quantityByProductId = getOrderedQuantityMap(null, productIds);
+
+        return productIds.stream()
+                .map(productId -> ProductOrderRankDto.builder()
+                        .productId(productId)
+                        .orderedQuantity(quantityByProductId.getOrDefault(productId, 0L))
+                        .build())
+                .toList();
+    }
+
+    @Override
     public List<ProductInsightDto> getDiscountedOrderedProducts(Long shopId, Integer limit) {
         int safeLimit = normalizeLimit(limit);
         List<Long> productIds = findOrderedProductIds(shopId);
