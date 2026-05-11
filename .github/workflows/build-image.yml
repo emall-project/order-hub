@@ -2,7 +2,7 @@ name: Build Order Hub Image
 
 on:
   push:
-    branches: ["find-and-fix-bugs"]
+    branches: ["develop"]
   workflow_dispatch:
 
 permissions:
