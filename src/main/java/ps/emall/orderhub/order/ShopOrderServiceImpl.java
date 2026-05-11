@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ps.emall.orderhub.cart.Cart;
@@ -196,7 +197,13 @@ public class ShopOrderServiceImpl implements ShopOrderService {
     public PaginatedResponse<ShopOrderDto> getOrdersByShop(Long shopId,
                                                             ShopOrderSpec spec,
                                                             Pageable pageable) {
-        Page<ShopOrderDto> page = shopOrderRepository.findAll(spec, pageable)
+
+        Specification<ShopOrder> shopFilter = (root, query, cb) ->
+                cb.equal(root.get("shopId"), shopId);
+
+        Specification<ShopOrder> combined = Specification.where(shopFilter).and(spec);
+
+        Page<ShopOrderDto> page = shopOrderRepository.findAll(combined, pageable)
                 .map(ShopOrderMapper::toDto)
                 .map(enrichmentService::enrich);
 
