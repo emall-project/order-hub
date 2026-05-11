@@ -34,6 +34,8 @@ public final class SecurityConstants {
             "/v3/api-docs/**",
             "/swagger-resources/**",
             "/actuator/**",
+            "/dashboard/products/most-ordered/public",
+            "/dashboard/products/most-ordered/public/**",
             "/error",
     };
 }
