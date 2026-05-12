@@ -40,6 +40,12 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, Long> {
 
     long countByStatus(OrderItemStatus status);
 
+    @Query("SELECT i.status, COUNT(i) FROM OrderItem i GROUP BY i.status")
+    List<Object[]> countAllGroupedByStatus();
+
+    @Query("SELECT i.status, COUNT(i) FROM OrderItem i WHERE i.shopId = :shopId GROUP BY i.status")
+    List<Object[]> countByShopIdGroupedByStatus(@Param("shopId") Long shopId);
+
     @Query("SELECT SUM(i.unitPrice * i.quantity) FROM OrderItem i WHERE i.shopId = :shopId AND i.status = 'READY_FOR_PAYOUT'")
     BigDecimal sumReadyForPayoutByShopId(@Param("shopId") Long shopId);
 

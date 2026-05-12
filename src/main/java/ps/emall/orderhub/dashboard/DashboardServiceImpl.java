@@ -42,100 +42,91 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public AdminDashboardDto getAdminDashboard() {
+        Map<ShopOrderStatus, Long> orderCounts = toEnumCountMap(
+                ShopOrderStatus.class,
+                shopOrderRepository.countAllGroupedByStatus()
+        );
+        Map<DeliveryStatus, Long> deliveryCounts = toEnumCountMap(
+                DeliveryStatus.class,
+                deliveryRepository.countAllGroupedByStatus()
+        );
+        Map<ReturnRequestStatus, Long> returnCounts = toEnumCountMap(
+                ReturnRequestStatus.class,
+                returnRequestRepository.countAllGroupedByStatus()
+        );
+        Map<OrderItemStatus, Long> itemCounts = toEnumCountMap(
+                OrderItemStatus.class,
+                orderItemRepository.countAllGroupedByStatus()
+        );
+
         return AdminDashboardDto.builder()
-                .orderKpis(buildAdminOrderKpis())
-                .deliveryKpis(buildDeliveryKpis())
-                .returnKpis(buildReturnKpis())
-                .financeKpis(buildFinanceKpis())
-                .orderStatusBreakdown(buildOrderStatusBreakdown())
-                .itemStatusBreakdown(buildItemStatusBreakdown())
-                .deliveryStatusBreakdown(buildDeliveryStatusBreakdown())
+                .orderKpis(buildAdminOrderKpis(orderCounts))
+                .deliveryKpis(buildDeliveryKpis(deliveryCounts))
+                .returnKpis(buildReturnKpis(returnCounts))
+                .financeKpis(buildFinanceKpis(itemCounts))
+                .orderStatusBreakdown(new OrderStatusBreakdownDto(toStringCountMap(orderCounts)))
+                .itemStatusBreakdown(new ItemStatusBreakdownDto(toStringCountMap(itemCounts)))
+                .deliveryStatusBreakdown(new DeliveryStatusBreakdownDto(toStringCountMap(deliveryCounts)))
                 .recentActivity(buildRecentActivity())
                 .build();
     }
 
-    private OrderKpiDto buildAdminOrderKpis() {
-        long inProgress = shopOrderRepository.countByStatus(ShopOrderStatus.PREPARING)
-                + shopOrderRepository.countByStatus(ShopOrderStatus.READY_FOR_PICKUP)
-                + shopOrderRepository.countByStatus(ShopOrderStatus.OUT_FOR_DELIVERY);
+    private OrderKpiDto buildAdminOrderKpis(Map<ShopOrderStatus, Long> counts) {
+        long inProgress = count(counts, ShopOrderStatus.PREPARING)
+                + count(counts, ShopOrderStatus.READY_FOR_PICKUP)
+                + count(counts, ShopOrderStatus.OUT_FOR_DELIVERY);
 
-        long failed = shopOrderRepository.countByStatus(ShopOrderStatus.CUSTOMER_REJECTED)
-                + shopOrderRepository.countByStatus(ShopOrderStatus.NO_RESPONSE);
+        long failed = count(counts, ShopOrderStatus.CUSTOMER_REJECTED)
+                + count(counts, ShopOrderStatus.NO_RESPONSE);
 
         return OrderKpiDto.builder()
-                .totalOrders(shopOrderRepository.count())
-                .newOrders(shopOrderRepository.countByStatus(ShopOrderStatus.NEW))
+                .totalOrders(counts.values().stream().mapToLong(Long::longValue).sum())
+                .newOrders(count(counts, ShopOrderStatus.NEW))
                 .ordersInProgress(inProgress)
-                .deliveredOrders(shopOrderRepository.countByStatus(ShopOrderStatus.DELIVERED))
+                .deliveredOrders(count(counts, ShopOrderStatus.DELIVERED))
                 .failedOrders(failed)
                 .build();
     }
 
-    private DeliveryKpiDto buildDeliveryKpis() {
-        long pending = deliveryRepository.countByStatus(DeliveryStatus.CREATED)
-                + deliveryRepository.countByStatus(DeliveryStatus.SENT)
-                + deliveryRepository.countByStatus(DeliveryStatus.ON_THE_WAY);
+    private DeliveryKpiDto buildDeliveryKpis(Map<DeliveryStatus, Long> counts) {
+        long pending = count(counts, DeliveryStatus.CREATED)
+                + count(counts, DeliveryStatus.SENT)
+                + count(counts, DeliveryStatus.ON_THE_WAY);
 
         return DeliveryKpiDto.builder()
-                .totalDeliveries(deliveryRepository.count())
+                .totalDeliveries(counts.values().stream().mapToLong(Long::longValue).sum())
                 .pendingDeliveries(pending)
-                .deliveredCount(deliveryRepository.countByStatus(DeliveryStatus.DELIVERED))
-                .failedCount(deliveryRepository.countByStatus(DeliveryStatus.FAILED))
+                .deliveredCount(count(counts, DeliveryStatus.DELIVERED))
+                .failedCount(count(counts, DeliveryStatus.FAILED))
                 .build();
     }
 
-    private ReturnKpiDto buildReturnKpis() {
+    private ReturnKpiDto buildReturnKpis(Map<ReturnRequestStatus, Long> counts) {
         return ReturnKpiDto.builder()
-                .totalReturns(returnRequestRepository.count())
-                .pendingReturns(returnRequestRepository.countByStatus(ReturnRequestStatus.PENDING))
-                .approvedReturns(returnRequestRepository.countByStatus(ReturnRequestStatus.APPROVED))
-                .rejectedReturns(returnRequestRepository.countByStatus(ReturnRequestStatus.REJECTED))
+                .totalReturns(counts.values().stream().mapToLong(Long::longValue).sum())
+                .pendingReturns(count(counts, ReturnRequestStatus.PENDING))
+                .approvedReturns(count(counts, ReturnRequestStatus.APPROVED))
+                .rejectedReturns(count(counts, ReturnRequestStatus.REJECTED))
                 .build();
     }
 
-    private FinanceKpiDto buildFinanceKpis() {
+    private FinanceKpiDto buildFinanceKpis(Map<OrderItemStatus, Long> counts) {
         return FinanceKpiDto.builder()
-                .itemsInHolding(orderItemRepository.countByStatus(OrderItemStatus.HOLDING))
-                .itemsReadyForPayout(orderItemRepository.countByStatus(OrderItemStatus.READY_FOR_PAYOUT))
-                .itemsReturnRejected(orderItemRepository.countByStatus(OrderItemStatus.RETURN_REJECTED))
+                .itemsInHolding(count(counts, OrderItemStatus.HOLDING))
+                .itemsReadyForPayout(count(counts, OrderItemStatus.READY_FOR_PAYOUT))
+                .itemsReturnRejected(count(counts, OrderItemStatus.RETURN_REJECTED))
                 .build();
-    }
-
-    private OrderStatusBreakdownDto buildOrderStatusBreakdown() {
-        Map<String, Long> breakdown = new LinkedHashMap<>();
-        for (ShopOrderStatus s : ShopOrderStatus.values()) {
-            breakdown.put(s.name(), shopOrderRepository.countByStatus(s));
-        }
-        return new OrderStatusBreakdownDto(breakdown);
-    }
-
-    private ItemStatusBreakdownDto buildItemStatusBreakdown() {
-        Map<String, Long> breakdown = new LinkedHashMap<>();
-        for (OrderItemStatus s : OrderItemStatus.values()) {
-            breakdown.put(s.name(), orderItemRepository.countByStatus(s));
-        }
-        return new ItemStatusBreakdownDto(breakdown);
-    }
-
-    private DeliveryStatusBreakdownDto buildDeliveryStatusBreakdown() {
-        Map<String, Long> breakdown = new LinkedHashMap<>();
-        for (DeliveryStatus s : DeliveryStatus.values()) {
-            breakdown.put(s.name(), deliveryRepository.countByStatus(s));
-        }
-        return new DeliveryStatusBreakdownDto(breakdown);
     }
 
     private RecentActivityDto buildRecentActivity() {
         List<ShopOrderDto> recentOrders = shopOrderRepository
                 .findAll(RECENT_10).stream()
                 .map(ShopOrderMapper::toDto)
-                .map(shopOrderEnrichmentService::enrich)
                 .collect(Collectors.toList());
 
         List<ReturnRequestDto> recentReturns = returnRequestRepository
                 .findAll(RECENT_10).stream()
                 .map(ReturnRequestMapper::toDto)
-                .map(returnEnrichmentService::enrich)
                 .collect(Collectors.toList());
 
         List<DeliveryDto> recentDeliveries = deliveryRepository
@@ -154,57 +145,62 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public ShopDashboardDto getShopDashboard(Long shopId) {
+        Map<ShopOrderStatus, Long> orderCounts = toEnumCountMap(
+                ShopOrderStatus.class,
+                shopOrderRepository.countByShopIdGroupedByStatus(shopId)
+        );
+        Map<ReturnRequestStatus, Long> returnCounts = toEnumCountMap(
+                ReturnRequestStatus.class,
+                returnRequestRepository.countByShopIdGroupedByStatus(shopId)
+        );
+        Map<OrderItemStatus, Long> itemCounts = toEnumCountMap(
+                OrderItemStatus.class,
+                orderItemRepository.countByShopIdGroupedByStatus(shopId)
+        );
+
         return ShopDashboardDto.builder()
                 .shopId(shopId)
-                .orderKpis(buildShopOrderKpis(shopId))
-                .returnKpis(buildShopReturnKpis(shopId))
-                .financeKpis(buildShopFinanceKpis(shopId))
-                .orderStatusBreakdown(buildShopOrderStatusBreakdown(shopId))
+                .orderKpis(buildShopOrderKpis(orderCounts))
+                .returnKpis(buildShopReturnKpis(returnCounts))
+                .financeKpis(buildShopFinanceKpis(shopId, itemCounts))
+                .orderStatusBreakdown(new OrderStatusBreakdownDto(toStringCountMap(orderCounts)))
                 .recentOrders(buildRecentShopOrders(shopId))
                 .pendingReturns(buildPendingReturns(shopId))
                 .build();
     }
 
-    private ShopOrderKpiDto buildShopOrderKpis(Long shopId) {
+    private ShopOrderKpiDto buildShopOrderKpis(Map<ShopOrderStatus, Long> counts) {
         return ShopOrderKpiDto.builder()
-                .totalOrders(shopOrderRepository.countByShopIdAndStatus(shopId, ShopOrderStatus.NEW)
-                        + shopOrderRepository.countByShopIdAndStatus(shopId, ShopOrderStatus.PREPARING)
-                        + shopOrderRepository.countByShopIdAndStatus(shopId, ShopOrderStatus.READY_FOR_PICKUP)
-                        + shopOrderRepository.countByShopIdAndStatus(shopId, ShopOrderStatus.OUT_FOR_DELIVERY)
-                        + shopOrderRepository.countByShopIdAndStatus(shopId, ShopOrderStatus.DELIVERED))
-                .newOrders(shopOrderRepository.countByShopIdAndStatus(shopId, ShopOrderStatus.NEW))
-                .preparingOrders(shopOrderRepository.countByShopIdAndStatus(shopId, ShopOrderStatus.PREPARING))
-                .readyForPickup(shopOrderRepository.countByShopIdAndStatus(shopId, ShopOrderStatus.READY_FOR_PICKUP))
-                .outForDelivery(shopOrderRepository.countByShopIdAndStatus(shopId, ShopOrderStatus.OUT_FOR_DELIVERY))
-                .deliveredOrders(shopOrderRepository.countByShopIdAndStatus(shopId, ShopOrderStatus.DELIVERED))
+                .totalOrders(count(counts, ShopOrderStatus.NEW)
+                        + count(counts, ShopOrderStatus.PREPARING)
+                        + count(counts, ShopOrderStatus.READY_FOR_PICKUP)
+                        + count(counts, ShopOrderStatus.OUT_FOR_DELIVERY)
+                        + count(counts, ShopOrderStatus.DELIVERED))
+                .newOrders(count(counts, ShopOrderStatus.NEW))
+                .preparingOrders(count(counts, ShopOrderStatus.PREPARING))
+                .readyForPickup(count(counts, ShopOrderStatus.READY_FOR_PICKUP))
+                .outForDelivery(count(counts, ShopOrderStatus.OUT_FOR_DELIVERY))
+                .deliveredOrders(count(counts, ShopOrderStatus.DELIVERED))
                 .build();
     }
 
-    private ShopReturnKpiDto buildShopReturnKpis(Long shopId) {
+    private ShopReturnKpiDto buildShopReturnKpis(Map<ReturnRequestStatus, Long> counts) {
         return ShopReturnKpiDto.builder()
-                .pendingReturns(returnRequestRepository.countByShopIdAndStatus(shopId, ReturnRequestStatus.PENDING))
-                .approvedReturns(returnRequestRepository.countByShopIdAndStatus(shopId, ReturnRequestStatus.APPROVED))
-                .rejectedReturns(returnRequestRepository.countByShopIdAndStatus(shopId, ReturnRequestStatus.REJECTED))
+                .pendingReturns(count(counts, ReturnRequestStatus.PENDING))
+                .approvedReturns(count(counts, ReturnRequestStatus.APPROVED))
+                .rejectedReturns(count(counts, ReturnRequestStatus.REJECTED))
                 .build();
     }
 
-    private ShopFinanceKpiDto buildShopFinanceKpis(Long shopId) {
+    private ShopFinanceKpiDto buildShopFinanceKpis(Long shopId, Map<OrderItemStatus, Long> counts) {
         return ShopFinanceKpiDto.builder()
-                .itemsReadyForPayout(orderItemRepository.countByShopIdAndStatus(shopId, OrderItemStatus.READY_FOR_PAYOUT))
-                .itemsReturnRejected(orderItemRepository.countByShopIdAndStatus(shopId, OrderItemStatus.RETURN_REJECTED))
-                .itemsInHolding(orderItemRepository.countByShopIdAndStatus(shopId, OrderItemStatus.HOLDING))
+                .itemsReadyForPayout(count(counts, OrderItemStatus.READY_FOR_PAYOUT))
+                .itemsReturnRejected(count(counts, OrderItemStatus.RETURN_REJECTED))
+                .itemsInHolding(count(counts, OrderItemStatus.HOLDING))
                 .readyForPayoutAmount(orZero(orderItemRepository.sumReadyForPayoutByShopId(shopId)))
                 .earnedAmount(orZero(orderItemRepository.sumEarnedAmountByShopId(shopId)))
                 .totalDeliveredAmount(orZero(shopOrderRepository.sumDeliveredTotalByShopId(shopId)))
                 .build();
-    }
-
-    private OrderStatusBreakdownDto buildShopOrderStatusBreakdown(Long shopId) {
-        Map<String, Long> breakdown = new LinkedHashMap<>();
-        for (ShopOrderStatus s : ShopOrderStatus.values()) {
-            breakdown.put(s.name(), shopOrderRepository.countByShopIdAndStatus(shopId, s));
-        }
-        return new OrderStatusBreakdownDto(breakdown);
     }
 
     private RecentShopOrdersDto buildRecentShopOrders(Long shopId) {
@@ -410,6 +406,38 @@ public class DashboardServiceImpl implements DashboardService {
                 .product(product)
                 .orderedQuantity(quantityByProductId.getOrDefault(product.getId(), 0L))
                 .build();
+    }
+
+    private <E extends Enum<E>> Map<E, Long> toEnumCountMap(Class<E> enumType, List<Object[]> rows) {
+        Map<E, Long> counts = new EnumMap<>(enumType);
+
+        for (E value : enumType.getEnumConstants()) {
+            counts.put(value, 0L);
+        }
+
+        if (rows == null) {
+            return counts;
+        }
+
+        for (Object[] row : rows) {
+            if (row == null || row.length < 2 || row[0] == null || row[1] == null) {
+                continue;
+            }
+
+            counts.put(enumType.cast(row[0]), ((Number) row[1]).longValue());
+        }
+
+        return counts;
+    }
+
+    private <E extends Enum<E>> Map<String, Long> toStringCountMap(Map<E, Long> counts) {
+        Map<String, Long> result = new LinkedHashMap<>();
+        counts.forEach((key, value) -> result.put(key.name(), value));
+        return result;
+    }
+
+    private <E extends Enum<E>> long count(Map<E, Long> counts, E key) {
+        return counts.getOrDefault(key, 0L);
     }
 
     private java.math.BigDecimal orZero(java.math.BigDecimal v) {

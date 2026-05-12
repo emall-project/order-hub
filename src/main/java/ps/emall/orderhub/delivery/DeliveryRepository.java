@@ -4,6 +4,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -22,6 +23,9 @@ public interface DeliveryRepository extends JpaRepository<Delivery, Long>,
     Page<Delivery> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     long countByStatus(DeliveryStatus status);
+
+    @Query("SELECT d.status, COUNT(d) FROM Delivery d GROUP BY d.status")
+    List<Object[]> countAllGroupedByStatus();
 
     List<Delivery> findByCartIdInOrderByCreatedAtDesc(List<Long> cartIds);
 

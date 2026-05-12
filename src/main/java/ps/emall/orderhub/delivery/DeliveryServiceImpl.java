@@ -176,7 +176,11 @@ public class DeliveryServiceImpl implements DeliveryService {
         Map<DeliveryStatus, Long> counts = new EnumMap<>(DeliveryStatus.class);
 
         for (DeliveryStatus status : DeliveryStatus.values()) {
-            counts.put(status, deliveryRepository.countByStatus(status));
+            counts.put(status, 0L);
+        }
+
+        for (Object[] row : deliveryRepository.countAllGroupedByStatus()) {
+            counts.put((DeliveryStatus) row[0], ((Number) row[1]).longValue());
         }
         return counts;
     }

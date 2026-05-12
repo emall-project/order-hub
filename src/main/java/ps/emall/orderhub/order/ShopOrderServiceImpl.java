@@ -322,7 +322,11 @@ public class ShopOrderServiceImpl implements ShopOrderService {
         Map<ShopOrderStatus, Long> counts = new EnumMap<>(ShopOrderStatus.class);
 
         for (ShopOrderStatus status : ShopOrderStatus.values()) {
-            counts.put(status, shopOrderRepository.countByStatus(status));
+            counts.put(status, 0L);
+        }
+
+        for (Object[] row : shopOrderRepository.countAllGroupedByStatus()) {
+            counts.put((ShopOrderStatus) row[0], ((Number) row[1]).longValue());
         }
         return counts;
     }
@@ -333,7 +337,11 @@ public class ShopOrderServiceImpl implements ShopOrderService {
         Map<ShopOrderStatus, Long> counts = new EnumMap<>(ShopOrderStatus.class);
 
         for (ShopOrderStatus status : ShopOrderStatus.values()) {
-            counts.put(status, shopOrderRepository.countByShopIdAndStatus(shopId, status));
+            counts.put(status, 0L);
+        }
+
+        for (Object[] row : shopOrderRepository.countByShopIdGroupedByStatus(shopId)) {
+            counts.put((ShopOrderStatus) row[0], ((Number) row[1]).longValue());
         }
         return counts;
     }

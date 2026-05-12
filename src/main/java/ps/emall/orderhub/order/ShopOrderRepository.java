@@ -32,6 +32,12 @@ public interface ShopOrderRepository extends JpaRepository<ShopOrder, Long>,
 
     long countByStatus(ShopOrderStatus status);
 
+    @Query("SELECT o.status, COUNT(o) FROM ShopOrder o GROUP BY o.status")
+    List<Object[]> countAllGroupedByStatus();
+
+    @Query("SELECT o.status, COUNT(o) FROM ShopOrder o WHERE o.shopId = :shopId GROUP BY o.status")
+    List<Object[]> countByShopIdGroupedByStatus(@Param("shopId") Long shopId);
+
     @Query("SELECT SUM(o.total) FROM ShopOrder o WHERE o.shopId = :shopId AND o.status = 'DELIVERED'")
     java.math.BigDecimal sumDeliveredTotalByShopId(@Param("shopId") Long shopId);
 }

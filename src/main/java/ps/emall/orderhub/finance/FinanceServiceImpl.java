@@ -14,7 +14,9 @@ import ps.emall.orderhub.returnrequest.ReturnRequestRepository;
 import ps.emall.orderhub.returnrequest.ReturnRequestStatus;
 
 import java.math.BigDecimal;
+import java.util.EnumMap;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Slf4j
@@ -30,77 +32,113 @@ public class FinanceServiceImpl implements FinanceService {
 
     @Override
     public FinanceOverviewDto getFinanceOverview() {
-        long totalOrders = shopOrderRepository.count();
-        long deliveredOrders = shopOrderRepository.countByStatus(ShopOrderStatus.DELIVERED);
-        long failedDeliveries = deliveryRepository.countByStatus(DeliveryStatus.FAILED);
-        long pendingReturns = returnRequestRepository.countByStatus(ReturnRequestStatus.PENDING);
-        long approvedReturns = returnRequestRepository.countByStatus(ReturnRequestStatus.APPROVED);
-        long rejectedReturns = returnRequestRepository.countByStatus(ReturnRequestStatus.REJECTED);
-        long readyForPayout = orderItemRepository.countByStatus(OrderItemStatus.READY_FOR_PAYOUT);
-        long holdingItems = orderItemRepository.countByStatus(OrderItemStatus.HOLDING);
-        long returnRejected = orderItemRepository.countByStatus(OrderItemStatus.RETURN_REJECTED);
+        Map<ShopOrderStatus, Long> orderCounts = toEnumCountMap(
+                ShopOrderStatus.class,
+                shopOrderRepository.countAllGroupedByStatus()
+        );
+        Map<DeliveryStatus, Long> deliveryCounts = toEnumCountMap(
+                DeliveryStatus.class,
+                deliveryRepository.countAllGroupedByStatus()
+        );
+        Map<ReturnRequestStatus, Long> returnCounts = toEnumCountMap(
+                ReturnRequestStatus.class,
+                returnRequestRepository.countAllGroupedByStatus()
+        );
+        Map<OrderItemStatus, Long> itemCounts = toEnumCountMap(
+                OrderItemStatus.class,
+                orderItemRepository.countAllGroupedByStatus()
+        );
 
         return FinanceOverviewDto.builder()
-                .totalOrders(totalOrders)
-                .deliveredOrders(deliveredOrders)
-                .failedDeliveries(failedDeliveries)
-                .pendingReturnRequests(pendingReturns)
-                .approvedReturnRequests(approvedReturns)
-                .rejectedReturnRequests(rejectedReturns)
-                .itemsReadyForPayout(readyForPayout)
-                .itemsInHoldingWindow(holdingItems)
-                .itemsReturnRejected(returnRejected)
+                .totalOrders(orderCounts.values().stream().mapToLong(Long::longValue).sum())
+                .deliveredOrders(count(orderCounts, ShopOrderStatus.DELIVERED))
+                .failedDeliveries(count(deliveryCounts, DeliveryStatus.FAILED))
+                .pendingReturnRequests(count(returnCounts, ReturnRequestStatus.PENDING))
+                .approvedReturnRequests(count(returnCounts, ReturnRequestStatus.APPROVED))
+                .rejectedReturnRequests(count(returnCounts, ReturnRequestStatus.REJECTED))
+                .itemsReadyForPayout(count(itemCounts, OrderItemStatus.READY_FOR_PAYOUT))
+                .itemsInHoldingWindow(count(itemCounts, OrderItemStatus.HOLDING))
+                .itemsReturnRejected(count(itemCounts, OrderItemStatus.RETURN_REJECTED))
                 .note("All amounts are recorded only. No payment gateway is connected.")
                 .build();
     }
 
     @Override
     public ShopPayoutDto getShopPayout(Long shopId) {
-        long readyItems = orderItemRepository.countByShopIdAndStatus(shopId, OrderItemStatus.READY_FOR_PAYOUT);
-        long returnRejected = orderItemRepository.countByShopIdAndStatus(shopId, OrderItemStatus.RETURN_REJECTED);
-        long holdingItems = orderItemRepository.countByShopIdAndStatus(shopId, OrderItemStatus.HOLDING);
+        Map<OrderItemStatus, Long> itemCounts = toEnumCountMap(
+                OrderItemStatus.class,
+                orderItemRepository.countByShopIdGroupedByStatus(shopId)
+        );
+        Map<ReturnRequestStatus, Long> returnCounts = toEnumCountMap(
+                ReturnRequestStatus.class,
+                returnRequestRepository.countByShopIdGroupedByStatus(shopId)
+        );
 
         BigDecimal readyAmount = orZero(orderItemRepository.sumReadyForPayoutByShopId(shopId));
         BigDecimal earnedAmount = orZero(orderItemRepository.sumEarnedAmountByShopId(shopId));
         BigDecimal deliveredTotal = orZero(shopOrderRepository.sumDeliveredTotalByShopId(shopId));
 
-        long pendingReturns = returnRequestRepository.countByShopIdAndStatus(shopId, ReturnRequestStatus.PENDING);
-        long approvedReturns = returnRequestRepository.countByShopIdAndStatus(shopId, ReturnRequestStatus.APPROVED);
-        long rejectedReturns = returnRequestRepository.countByShopIdAndStatus(shopId, ReturnRequestStatus.REJECTED);
-
         return ShopPayoutDto.builder()
                 .shopId(shopId)
-                .itemsReadyForPayout(readyItems)
-                .itemsReturnRejected(returnRejected)
-                .itemsInHoldingWindow(holdingItems)
+                .itemsReadyForPayout(count(itemCounts, OrderItemStatus.READY_FOR_PAYOUT))
+                .itemsReturnRejected(count(itemCounts, OrderItemStatus.RETURN_REJECTED))
+                .itemsInHoldingWindow(count(itemCounts, OrderItemStatus.HOLDING))
                 .readyForPayoutAmount(readyAmount)
                 .earnedAmount(earnedAmount)
                 .totalDeliveredAmount(deliveredTotal)
-                .pendingReturnRequests(pendingReturns)
-                .approvedReturnRequests(approvedReturns)
-                .rejectedReturnRequests(rejectedReturns)
+                .pendingReturnRequests(count(returnCounts, ReturnRequestStatus.PENDING))
+                .approvedReturnRequests(count(returnCounts, ReturnRequestStatus.APPROVED))
+                .rejectedReturnRequests(count(returnCounts, ReturnRequestStatus.REJECTED))
                 .note("earnedAmount includes READY_FOR_PAYOUT + RETURN_REJECTED items. No real transfer has occurred.")
                 .build();
     }
 
     @Override
     public Map<String, Long> getOrderItemStatusDistribution() {
-        Map<String, Long> distribution = new HashMap<>();
-
-        for (OrderItemStatus status : OrderItemStatus.values()) {
-            distribution.put(status.name(), orderItemRepository.countByStatus(status));
-        }
-        return distribution;
+        return toStringCountMap(toEnumCountMap(
+                OrderItemStatus.class,
+                orderItemRepository.countAllGroupedByStatus()
+        ));
     }
 
     @Override
     public Map<String, Long> getShopReturnStats(Long shopId) {
-        Map<String, Long> stats = new HashMap<>();
+        return toStringCountMap(toEnumCountMap(
+                ReturnRequestStatus.class,
+                returnRequestRepository.countByShopIdGroupedByStatus(shopId)
+        ));
+    }
 
-        for (ReturnRequestStatus status : ReturnRequestStatus.values()) {
-            stats.put(status.name(), returnRequestRepository.countByShopIdAndStatus(shopId, status));
+    private <E extends Enum<E>> Map<E, Long> toEnumCountMap(Class<E> enumType, java.util.List<Object[]> rows) {
+        Map<E, Long> counts = new EnumMap<>(enumType);
+
+        for (E value : enumType.getEnumConstants()) {
+            counts.put(value, 0L);
         }
-        return stats;
+
+        if (rows == null) {
+            return counts;
+        }
+
+        for (Object[] row : rows) {
+            if (row == null || row.length < 2 || row[0] == null || row[1] == null) {
+                continue;
+            }
+
+            counts.put(enumType.cast(row[0]), ((Number) row[1]).longValue());
+        }
+
+        return counts;
+    }
+
+    private <E extends Enum<E>> Map<String, Long> toStringCountMap(Map<E, Long> counts) {
+        Map<String, Long> result = new LinkedHashMap<>();
+        counts.forEach((key, value) -> result.put(key.name(), value));
+        return result;
+    }
+
+    private <E extends Enum<E>> long count(Map<E, Long> counts, E key) {
+        return counts.getOrDefault(key, 0L);
     }
 
     private BigDecimal orZero(BigDecimal value) {

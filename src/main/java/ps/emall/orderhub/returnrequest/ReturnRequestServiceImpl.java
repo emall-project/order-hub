@@ -223,7 +223,11 @@ public class ReturnRequestServiceImpl implements ReturnRequestService {
         Map<ReturnRequestStatus, Long> counts = new EnumMap<>(ReturnRequestStatus.class);
 
         for (ReturnRequestStatus status : ReturnRequestStatus.values()) {
-            counts.put(status, returnRequestRepository.countByShopIdAndStatus(shopId, status));
+            counts.put(status, 0L);
+        }
+
+        for (Object[] row : returnRequestRepository.countByShopIdGroupedByStatus(shopId)) {
+            counts.put((ReturnRequestStatus) row[0], ((Number) row[1]).longValue());
         }
         return counts;
     }
@@ -269,7 +273,11 @@ public class ReturnRequestServiceImpl implements ReturnRequestService {
         Map<ReturnRequestStatus, Long> counts = new EnumMap<>(ReturnRequestStatus.class);
 
         for (ReturnRequestStatus status : ReturnRequestStatus.values()) {
-            counts.put(status, returnRequestRepository.countByStatus(status));
+            counts.put(status, 0L);
+        }
+
+        for (Object[] row : returnRequestRepository.countAllGroupedByStatus()) {
+            counts.put((ReturnRequestStatus) row[0], ((Number) row[1]).longValue());
         }
         return counts;
     }

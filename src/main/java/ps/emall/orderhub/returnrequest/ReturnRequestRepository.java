@@ -4,6 +4,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -35,4 +37,10 @@ public interface ReturnRequestRepository extends JpaRepository<ReturnRequest, Lo
     long countByShopIdAndStatus(Long shopId, ReturnRequestStatus status);
 
     long countByStatus(ReturnRequestStatus status);
+
+    @Query("SELECT r.status, COUNT(r) FROM ReturnRequest r GROUP BY r.status")
+    List<Object[]> countAllGroupedByStatus();
+
+    @Query("SELECT r.status, COUNT(r) FROM ReturnRequest r WHERE r.shopId = :shopId GROUP BY r.status")
+    List<Object[]> countByShopIdGroupedByStatus(@Param("shopId") Long shopId);
 }
