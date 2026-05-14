@@ -2,6 +2,7 @@ package ps.emall.orderhub.client.catalog;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
+import ps.emall.orderhub.client.media.FileDto;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -23,6 +24,7 @@ public class ProductInfoDto {
     private Boolean isActive;
     private Long storeId;
     private Long mallId;
+    private FileDto medium;
     private List<VariantPriceInfoDto> variants;
 
     @Getter

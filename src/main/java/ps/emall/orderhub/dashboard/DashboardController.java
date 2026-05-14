@@ -5,7 +5,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import ps.emall.orderhub.common.response.EMallsResponseEntity;
+import ps.emall.orderhub.dashboard.section.ProductInsightDto;
+import ps.emall.orderhub.dashboard.section.ProductOrderRankDto;
 import ps.emall.orderhub.security.SecurityContextUtilBean;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/dashboard")
@@ -39,5 +43,27 @@ public class DashboardController {
     public EMallsResponseEntity<CustomerDashboardDto> getCustomerDashboard() {
        Long customerId = auth.getCurrentUserId();
         return EMallsResponseEntity.ok(dashboardService.getCustomerDashboard(customerId));
+    }
+
+    @GetMapping("/products/most-ordered")
+    @PreAuthorize("@auth.isAdmin() or (#shopId != null and @auth.isShopOwnerOf(#shopId))")
+    public EMallsResponseEntity<List<ProductInsightDto>> getMostOrderedProducts(
+            @RequestParam(required = false) @Positive Long shopId,
+            @RequestParam(defaultValue = "10") @Positive Integer limit) {
+        return EMallsResponseEntity.ok(dashboardService.getMostOrderedProducts(shopId, limit));
+    }
+
+    @GetMapping("/products/most-ordered/public")
+    public EMallsResponseEntity<List<ProductOrderRankDto>> getPublicMostOrderedProducts(
+            @RequestParam(defaultValue = "10") @Positive Integer limit) {
+        return EMallsResponseEntity.ok(dashboardService.getPublicMostOrderedProducts(limit));
+    }
+
+    @GetMapping("/products/discounted")
+    @PreAuthorize("@auth.isAdmin() or (#shopId != null and @auth.isShopOwnerOf(#shopId))")
+    public EMallsResponseEntity<List<ProductInsightDto>> getDiscountedOrderedProducts(
+            @RequestParam(required = false) @Positive Long shopId,
+            @RequestParam(defaultValue = "10") @Positive Integer limit) {
+        return EMallsResponseEntity.ok(dashboardService.getDiscountedOrderedProducts(shopId, limit));
     }
 }

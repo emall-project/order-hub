@@ -1,4 +1,7 @@
 spring:
+  jackson:
+    time-zone: Asia/Gaza
+
   datasource:
     driver-class-name: org.postgresql.Driver
   jpa:
