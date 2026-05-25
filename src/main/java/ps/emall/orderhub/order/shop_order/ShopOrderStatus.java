@@ -1,4 +1,4 @@
-package ps.emall.orderhub.order;
+package ps.emall.orderhub.order.shop_order;
 
 public enum ShopOrderStatus {
     NEW,

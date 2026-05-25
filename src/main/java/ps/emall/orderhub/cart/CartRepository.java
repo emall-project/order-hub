@@ -13,7 +13,7 @@ import java.util.Optional;
 public interface CartRepository extends JpaRepository<Cart, Long>,
         JpaSpecificationExecutor<Cart> {
 
-    Optional<Cart> findByCustomerIdAndMallIdAndStatus(Long customerId, Long mallId, CartStatus status);
+    Optional<Cart> findByCustomerIdAndMallId(Long customerId, Long mallId);
 
     boolean existsByCustomerIdAndMallIdAndStatus(Long customerId, Long mallId, CartStatus status);
 
@@ -27,7 +27,7 @@ public interface CartRepository extends JpaRepository<Cart, Long>,
 
     long countByStatus(CartStatus status);
 
-    List<Cart> findAllByCustomerIdAndStatus(Long customerId, CartStatus status);
+    List<Cart> findAllByCustomerId(Long customerId);
 
     List<Long> findCartIdByCustomerId(Long customerId);
 }

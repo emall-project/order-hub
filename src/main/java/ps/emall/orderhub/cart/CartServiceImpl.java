@@ -43,7 +43,6 @@ public class CartServiceImpl implements CartService {
     @Override
     public CartDto addItem(Long customerId, AddToCartRequest request) {
 
-        validateCustomerExists(customerId);
 
         ProductInfoDto product = fetchProductOrThrow(request.getProductId());
 
@@ -59,7 +58,7 @@ public class CartServiceImpl implements CartService {
         }
 
         Cart cart = cartRepository
-                .findByCustomerIdAndMallIdAndStatus(customerId, request.getMallId(), CartStatus.ACTIVE)
+                .findByCustomerIdAndMallId(customerId, request.getMallId())
                 .orElseGet(() -> createEmptyCart(customerId, request.getMallId()));
 
         if (cartItemRepository.existsByCart_CartIdAndVariantId(cart.getCartId(), request.getVariantId())) {
@@ -129,9 +128,9 @@ public class CartServiceImpl implements CartService {
 
     @Override
     // Note: NOT readOnly — refreshCartPrices may write
-    public CartDto getActiveCartForMall(Long customerId, Long mallId) {
+    public CartDto getCartForMall(Long customerId, Long mallId) {
         Cart cart = cartRepository
-                .findByCustomerIdAndMallIdAndStatus(customerId, mallId, CartStatus.ACTIVE)
+                .findByCustomerIdAndMallId(customerId, mallId)
                 .orElseThrow(CartExceptions::cartNotFound);
 
         refreshCartPrices(cart);
@@ -155,20 +154,9 @@ public class CartServiceImpl implements CartService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public PaginatedResponse<CartDto> getMyCartHistory(Long customerId, Pageable pageable) {
-        // History = checked out / cancelled carts → no price refresh needed
-        return PaginatedResponse.of(
-                cartRepository.findByCustomerIdOrderByCreatedAtDesc(customerId, pageable)
-                        .map(CartMapper::toDto)
-                        .map(enrichmentService::enrich)
-        );
-    }
-
-    @Override
     // Note: NOT readOnly — refreshCartPrices may write
     public List<CartDto> getAllActiveCartsForCustomer(Long customerId) {
-        List<Cart> carts = cartRepository.findAllByCustomerIdAndStatus(customerId, CartStatus.ACTIVE);
+        List<Cart> carts = cartRepository.findAllByCustomerId(customerId);
         carts.forEach(this::refreshCartPrices);
         return carts.stream()
                 .map(CartMapper::toDto)
@@ -178,26 +166,6 @@ public class CartServiceImpl implements CartService {
 
     // ─── Modify active cart ────────────────────────────────────────────────────
 
-    @Override
-    public CartDto updateDeliveryDetails(Long cartId, Long customerId, CartDto details) {
-        Cart cart = getActiveCartOwnedBy(cartId, customerId);
-
-        if (details.getCityId() != null
-                && !details.getCityId().equals(cart.getCityId())) {
-            CityDto city = fetchCityOrThrow(details.getCityId());
-            cart.setCityId(city.getCityId());
-            cart.setDeliveryFee(city.getBaseFee());
-        }
-
-        if (details.getDeliveryName() != null) cart.setDeliveryName(details.getDeliveryName());
-        if (details.getDeliveryPhone() != null) cart.setDeliveryPhone(PhoneNumberMapper.toPhoneString(details.getDeliveryPhone()));
-        if (details.getDeliveryNote() != null) cart.setDeliveryNote(details.getDeliveryNote());
-        if (details.getDeliveryLocation() != null) cart.setDeliveryLocation(details.getDeliveryLocation());
-
-        Cart saved = cartRepository.save(cart);
-        log.info("Cart delivery details updated: cartId={}", cartId);
-        return enrichmentService.enrich(CartMapper.toDto(saved));
-    }
 
     @Override
     public CartDto updateItemQuantity(Long customerId, Long cartItemId,
@@ -209,9 +177,6 @@ public class CartServiceImpl implements CartService {
 
         if (!cart.getCustomerId().equals(customerId)) {
             throw CartExceptions.cartItemNotInCart();
-        }
-        if (cart.getStatus() != CartStatus.ACTIVE) {
-            throw CartExceptions.cartNotActive();
         }
 
         item.setQuantity(request.getQuantity());
@@ -238,9 +203,6 @@ public class CartServiceImpl implements CartService {
         if (!cart.getCustomerId().equals(customerId)) {
             throw CartExceptions.cartItemNotInCart();
         }
-        if (cart.getStatus() != CartStatus.ACTIVE) {
-            throw CartExceptions.cartNotActive();
-        }
 
         cart.getItems().remove(item);
 
@@ -257,7 +219,7 @@ public class CartServiceImpl implements CartService {
     @Override
     public CartDto clearCart(Long customerId, Long mallId) {
         Cart cart = cartRepository
-                .findByCustomerIdAndMallIdAndStatus(customerId, mallId, CartStatus.ACTIVE)
+                .findByCustomerIdAndMallId(customerId, mallId)
                 .orElseThrow(CartExceptions::cartNotFound);
 
         cart.getItems().clear();
@@ -268,33 +230,9 @@ public class CartServiceImpl implements CartService {
         return enrichmentService.enrich(CartMapper.toDto(saved));
     }
 
-    @Override
-    public CartDto cancelCart(Long customerId, Long mallId) {
-        Cart cart = cartRepository
-                .findByCustomerIdAndMallIdAndStatus(customerId, mallId, CartStatus.ACTIVE)
-                .orElseThrow(CartExceptions::cartNotFound);
-
-        cart.setStatus(CartStatus.CANCELLED);
-        Cart saved = cartRepository.save(cart);
-        log.info("Cart cancelled: cartId={}, mallId={}, customerId={}", cart.getCartId(), mallId, customerId);
-        return enrichmentService.enrich(CartMapper.toDto(saved));
-    }
 
     // ─── System ────────────────────────────────────────────────────────────────
 
-    @Override
-    public void markCheckedOut(Long cartId) {
-        Cart cart = cartRepository.findById(cartId)
-                .orElseThrow(CartExceptions::cartNotFound);
-
-        if (cart.getStatus() != CartStatus.ACTIVE) {
-            throw CartExceptions.cartNotActive();
-        }
-
-        cart.setStatus(CartStatus.CHECKED_OUT);
-        cartRepository.save(cart);
-        log.info("Cart marked as checked out: cartId={}", cartId);
-    }
 
     // ─── Admin ─────────────────────────────────────────────────────────────────
 
@@ -397,9 +335,7 @@ public class CartServiceImpl implements CartService {
         Cart cart = Cart.builder()
                 .customerId(customerId)
                 .mallId(mallId)
-                .deliveryFee(BigDecimal.ZERO)
                 .totalAmount(BigDecimal.ZERO)
-                .status(CartStatus.ACTIVE)
                 .build();
         Cart saved = cartRepository.save(cart);
         log.info("Auto-created cart: cartId={}, customerId={}, mallId={}",
@@ -413,9 +349,6 @@ public class CartServiceImpl implements CartService {
 
         if (!cart.getCustomerId().equals(customerId)) {
             throw CartExceptions.cartNotFound();
-        }
-        if (cart.getStatus() != CartStatus.ACTIVE) {
-            throw CartExceptions.cartNotActive();
         }
         return cart;
     }
@@ -460,23 +393,6 @@ public class CartServiceImpl implements CartService {
         } catch (FeignException e) {
             log.error("Accounts unreachable for cityId={}, status={}", cityId, e.status());
             throw CartExceptions.cityNotFound();
-        }
-    }
-
-    private void validateCustomerExists(Long customerId) {
-        try {
-            AccountsUserResponse response = accountsClient.getUserById(customerId);
-            if (response == null || response.getData() == null) {
-                throw CartExceptions.customerNotFound();
-            }
-            if (Boolean.FALSE.equals(response.getData().getIsActive())) {
-                throw CartExceptions.customerNotActive();
-            }
-        } catch (FeignException.NotFound e) {
-            throw CartExceptions.customerNotFound();
-        } catch (FeignException e) {
-            log.warn("Accounts unreachable for customerId={}, status={}. Allowing request.",
-                    customerId, e.status());
         }
     }
 }

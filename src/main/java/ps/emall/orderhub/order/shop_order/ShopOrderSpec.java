@@ -1,4 +1,4 @@
-package ps.emall.orderhub.order;
+package ps.emall.orderhub.order.shop_order;
 
 import net.kaczmarzyk.spring.data.jpa.domain.Equal;
 import net.kaczmarzyk.spring.data.jpa.domain.GreaterThanOrEqual;

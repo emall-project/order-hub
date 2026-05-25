@@ -1,4 +1,4 @@
-package ps.emall.orderhub.order;
+package ps.emall.orderhub.order.shop_order;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
