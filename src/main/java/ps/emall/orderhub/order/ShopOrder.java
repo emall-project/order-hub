@@ -1,4 +1,4 @@
-package ps.emall.orderhub.order.shop_order;
+package ps.emall.orderhub.order;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -42,8 +42,8 @@ public class ShopOrder extends EMallsBaseEntity {
     @Column(name = "shop_order_id")
     private Long shopOrderId;
 
-    @Column(name = "order_id", nullable = false)
-    private Long orderId;
+    @Column(name = "cart_id", nullable = false)
+    private Long cartId;
 
     @Column(name = "shop_id", nullable = false)
     private Long shopId;

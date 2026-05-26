@@ -1,4 +1,4 @@
-package ps.emall.orderhub.order.shop_order;
+package ps.emall.orderhub.order;
 
 import ps.emall.orderhub.cart.CartMapper;
 import ps.emall.orderhub.cart.CartRepository;

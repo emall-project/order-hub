@@ -1,4 +1,4 @@
-package ps.emall.orderhub.order.shop_order;
+package ps.emall.orderhub.order;
 
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;

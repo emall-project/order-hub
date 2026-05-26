@@ -1,6 +1,6 @@
 package ps.emall.orderhub.returnrequest;
 
-import ps.emall.orderhub.order.shop_order.ShopOrderMapper;
+import ps.emall.orderhub.order.ShopOrderMapper;
 
 public class ReturnRequestMapper {
 

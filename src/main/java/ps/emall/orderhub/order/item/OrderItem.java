@@ -5,9 +5,8 @@ import lombok.*;
 import lombok.experimental.SuperBuilder;
 import org.hibernate.envers.AuditTable;
 import org.hibernate.envers.Audited;
-import ps.emall.orderhub.cart.Order;
 import ps.emall.orderhub.common.base.EMallsBaseEntity;
-import ps.emall.orderhub.order.shop_order.ShopOrder;
+import ps.emall.orderhub.order.ShopOrder;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -45,10 +44,6 @@ public class OrderItem extends EMallsBaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "shop_order_id", nullable = false)
     private ShopOrder shopOrder;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id", nullable = false)
-    private Order order;
 
     @Column(name = "shop_id", nullable = false)
     private Long shopId;

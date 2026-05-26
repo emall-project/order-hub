@@ -25,12 +25,34 @@ public class CartDto {
     private Long mallId;
     private Long customerId;
 
-    private BigDecimal totalAmount;
+    @Positive(message = "cart.cityId.positive")
+    private Long cityId;
 
+    private BigDecimal deliveryFee;
+    private BigDecimal totalAmount;
+    private BigDecimal grandTotal;
+
+    @Size(min = 2, max = 100, message = "cart.deliveryName.size")
+    private String deliveryName;
+
+    @Valid
+    private PhoneNumberDto deliveryPhone;
+
+    @Size(max = 255, message = "cart.deliveryNote.size")
+    private String deliveryNote;
+
+    @Size(min = 5, max = 255, message = "cart.deliveryLocation.size")
+    private String deliveryLocation;
+
+    private CartStatus status;
 
     @Valid
     private List<CartItemDto> items;
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    private MallInfoDto mallInfo;
+    private UserInfoDto customerInfo;
+    private CityDto cityInfo;
 }

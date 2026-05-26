@@ -1,4 +1,4 @@
-package ps.emall.orderhub.order.shop_order;
+package ps.emall.orderhub.order;
 
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +12,7 @@ import ps.emall.orderhub.cart.Cart;
 import ps.emall.orderhub.cart.CartExceptions;
 import ps.emall.orderhub.cart.CartRepository;
 import ps.emall.orderhub.cart.CartService;
+import ps.emall.orderhub.cart.CartStatus;
 import ps.emall.orderhub.cart.CheckoutRequest;
 import ps.emall.orderhub.cart.item.CartItem;
 import ps.emall.orderhub.client.accounts.AccountsClient;
@@ -26,7 +27,6 @@ import ps.emall.orderhub.delivery.DeliveryStatus;
 import ps.emall.orderhub.order.item.OrderItem;
 import ps.emall.orderhub.order.item.OrderItemRepository;
 import ps.emall.orderhub.order.item.OrderItemStatus;
-import ps.emall.orderhub.order.order.Order;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -65,7 +65,6 @@ public class ShopOrderServiceImpl implements ShopOrderService {
     private final DeliveryRepository deliveryRepository;
     private final AccountsClient accountsClient;
     private final ShopOrderEnrichmentService enrichmentService;
-    private final OrderRepository orderRepository;
 
     // Checkout
 
@@ -74,7 +73,7 @@ public class ShopOrderServiceImpl implements ShopOrderService {
 
         // Fetch active cart for this specific mall
         Cart cart = cartRepository
-                .findByCustomerIdAndMallId(customerId, mallId)
+                .findByCustomerIdAndMallIdAndStatus(customerId, mallId, CartStatus.ACTIVE)
                 .orElseThrow(CartExceptions::cartNotFound);
 
         // Cart must have items
@@ -82,18 +81,21 @@ public class ShopOrderServiceImpl implements ShopOrderService {
             throw CartExceptions.cartIsEmptyForCheckout();
         }
 
+        // Guard — should never happen but prevents double-checkout
+        if (cart.getStatus() == CartStatus.CHECKED_OUT) {
+            throw CartExceptions.cartAlreadyCheckedOut();
+        }
 
         // Apply delivery details from the checkout popup to the cart.
         // City lookup also fetches the live delivery fee from the Accounts service.
         CityDto city = fetchCityOrThrow(request.getCityId());
-        Order order = new Order();
-        order.setCityId(city.getCityId());
-        order.setDeliveryFee(city.getBaseFee());
-        order.setDeliveryName(request.getDeliveryName());
-        order.setDeliveryPhone(PhoneNumberMapper.toPhoneString(request.getDeliveryPhone()));
-        order.setDeliveryLocation(request.getDeliveryLocation());
-        order.setDeliveryNote(request.getDeliveryNote());
-        orderRepository.save(cart);
+        cart.setCityId(city.getCityId());
+        cart.setDeliveryFee(city.getBaseFee());
+        cart.setDeliveryName(request.getDeliveryName());
+        cart.setDeliveryPhone(PhoneNumberMapper.toPhoneString(request.getDeliveryPhone()));
+        cart.setDeliveryLocation(request.getDeliveryLocation());
+        cart.setDeliveryNote(request.getDeliveryNote());
+        cartRepository.save(cart);
 
         // Group cart items by storeId — one ShopOrder per store
         Map<Long, List<CartItem>> itemsByStore = cart.getItems().stream()
@@ -155,6 +157,7 @@ public class ShopOrderServiceImpl implements ShopOrderService {
         log.info("Delivery record created for cartId={}", cart.getCartId());
 
         // Lock the cart — frees the customer's active-cart slot immediately
+        cartService.markCheckedOut(cart.getCartId());
 
         return createdOrders.stream()
                 .map(ShopOrderMapper::toDto)

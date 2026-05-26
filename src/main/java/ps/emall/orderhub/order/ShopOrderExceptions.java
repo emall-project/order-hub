@@ -1,4 +1,4 @@
-package ps.emall.orderhub.order.shop_order;
+package ps.emall.orderhub.order;
 
 import org.springframework.http.HttpStatus;
 import ps.emall.orderhub.common.exception.EMallsException;

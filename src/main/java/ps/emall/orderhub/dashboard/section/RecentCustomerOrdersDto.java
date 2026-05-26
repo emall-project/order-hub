@@ -1,6 +1,6 @@
 package ps.emall.orderhub.dashboard.section;
 
-import ps.emall.orderhub.order.shop_order.ShopOrderDto;
+import ps.emall.orderhub.order.ShopOrderDto;
 
 import java.util.List;
 import lombok.*;

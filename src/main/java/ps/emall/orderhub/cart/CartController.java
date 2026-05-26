@@ -11,8 +11,8 @@ import ps.emall.orderhub.cart.item.AddToCartRequest;
 import ps.emall.orderhub.cart.item.UpdateCartItemRequest;
 import ps.emall.orderhub.common.page.PaginatedResponse;
 import ps.emall.orderhub.common.response.EMallsResponseEntity;
-import ps.emall.orderhub.order.shop_order.ShopOrderDto;
-import ps.emall.orderhub.order.shop_order.ShopOrderService;
+import ps.emall.orderhub.order.ShopOrderDto;
+import ps.emall.orderhub.order.ShopOrderService;
 import ps.emall.orderhub.security.SecurityContextUtilBean;
 
 import java.util.List;
@@ -41,10 +41,10 @@ public class CartController {
 
     @GetMapping("/me/mall/{mallId}")
     @PreAuthorize("@auth.isCustomer()")
-    public EMallsResponseEntity<CartDto> getMyCartForMall(
+    public EMallsResponseEntity<CartDto> getMyActiveCartForMall(
             @PathVariable @Positive Long mallId) {
         Long customerId = auth.getCurrentUserId();
-        return EMallsResponseEntity.ok(cartService.getCartForMall(customerId, mallId));
+        return EMallsResponseEntity.ok(cartService.getActiveCartForMall(customerId, mallId));
     }
 
     @GetMapping("/{cartId}")
@@ -54,12 +54,29 @@ public class CartController {
         return EMallsResponseEntity.ok(cartService.getCartById(cartId, customerId));
     }
 
+    @GetMapping("/me/history")
+    @PreAuthorize("@auth.isCustomer()")
+    public EMallsResponseEntity<PaginatedResponse<CartDto>> getMyCartHistory(Pageable pageable) {
+        Long customerId = auth.getCurrentUserId();
+        return EMallsResponseEntity.ok(cartService.getMyCartHistory(customerId, pageable));
+    }
 
     @GetMapping("/me/active")
     @PreAuthorize("@auth.isCustomer()")
     public EMallsResponseEntity<List<CartDto>> getMyActiveCarts() {
         Long customerId = auth.getCurrentUserId();
         return EMallsResponseEntity.ok(cartService.getAllActiveCartsForCustomer(customerId));
+    }
+
+    // Modify delivery details
+
+    @PutMapping("/{cartId}/delivery")
+    @PreAuthorize("@auth.isCustomer()")
+    public EMallsResponseEntity<CartDto> updateDeliveryDetails(
+            @PathVariable @Positive Long cartId,
+            @RequestBody @Valid CartDto details) {
+        Long customerId = auth.getCurrentUserId();
+        return EMallsResponseEntity.ok(cartService.updateDeliveryDetails(cartId, customerId, details));
     }
 
     // Modify items
@@ -85,6 +102,13 @@ public class CartController {
     public EMallsResponseEntity<CartDto> clearCart(@PathVariable @Positive Long mallId) {
         Long customerId = auth.getCurrentUserId();
         return EMallsResponseEntity.ok(cartService.clearCart(customerId, mallId));
+    }
+
+    @PatchMapping("/me/mall/{mallId}/cancel")
+    @PreAuthorize("@auth.isCustomer()")
+    public EMallsResponseEntity<CartDto> cancelCart(@PathVariable @Positive Long mallId) {
+        Long customerId = auth.getCurrentUserId();
+        return EMallsResponseEntity.ok(cartService.cancelCart(customerId, mallId));
     }
 
     // Checkout

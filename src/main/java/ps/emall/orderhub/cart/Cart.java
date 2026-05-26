@@ -47,9 +47,33 @@ public class Cart extends EMallsBaseEntity {
     @Column(name = "customer_id", nullable = false)
     private Long customerId;
 
+    @Column(name = "city_id")
+    private Long cityId;
+
+    @Column(name = "delivery_fee", nullable = false, precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal deliveryFee = BigDecimal.ZERO;
+
     @Column(name = "total_amount", nullable = false, precision = 10, scale = 2)
     @Builder.Default
     private BigDecimal totalAmount = BigDecimal.ZERO;
+
+    @Column(name = "delivery_name")
+    private String deliveryName;
+
+    @Column(name = "delivery_phone")
+    private String deliveryPhone;
+
+    @Column(name = "delivery_note")
+    private String deliveryNote;
+
+    @Column(name = "delivery_location")
+    private String deliveryLocation;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    @Builder.Default
+    private CartStatus status = CartStatus.ACTIVE;
 
     @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

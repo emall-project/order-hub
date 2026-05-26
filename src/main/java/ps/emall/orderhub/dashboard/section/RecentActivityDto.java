@@ -3,7 +3,7 @@ package ps.emall.orderhub.dashboard.section;
 import java.util.List;
 import lombok.*;
 import ps.emall.orderhub.delivery.DeliveryDto;
-import ps.emall.orderhub.order.shop_order.ShopOrderDto;
+import ps.emall.orderhub.order.ShopOrderDto;
 import ps.emall.orderhub.returnrequest.ReturnRequestDto;
 
 @Getter

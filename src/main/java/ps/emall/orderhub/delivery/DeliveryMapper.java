@@ -2,8 +2,8 @@ package ps.emall.orderhub.delivery;
 
 import ps.emall.orderhub.cart.CartMapper;
 import ps.emall.orderhub.cart.CartRepository;
-import ps.emall.orderhub.order.shop_order.ShopOrder;
-import ps.emall.orderhub.order.shop_order.ShopOrderRepository;
+import ps.emall.orderhub.order.ShopOrder;
+import ps.emall.orderhub.order.ShopOrderRepository;
 
 import java.util.List;
 import java.util.stream.Collectors;
